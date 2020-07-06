@@ -20,8 +20,8 @@ template deriveEncKeys(secret: ptr byte) =
   var
     macd: array[MACD_LEN, byte] = hkdf(
       secret,
-      CHAIN_INFO,
-      BLANK_SALT
+      BLANK_SALT,
+      CHAIN_INFO
     )
     encKey {.inject.}: Curve25519Key
     authKey {.inject.}: Curve25519Key
