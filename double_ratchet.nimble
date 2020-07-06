@@ -1,5 +1,3 @@
-import os
-
 mode = ScriptMode.Verbose
 
 version       = "0.1.0"
