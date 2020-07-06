@@ -77,7 +77,7 @@ proc next*(kdf: KDFChain) =
   hmac.init([byte(16)])
   finished = hmac.finish()
   kdf.msgKey = kdf.nextMsgKey
-  copyMem(addr kdf.nextMsgKey[0], unsafeAddr finished.data[0], KEY_SIG_LEN)
+  copyMem(addr kdf.nextMsgKey[0], addr finished.data[0], KEY_SIG_LEN)
   hmac.clear()
 
   inc(kdf.messages)
