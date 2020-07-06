@@ -9,27 +9,25 @@ const
 proc hkdf*(
   secret: ptr byte,
   salt: ptr byte,
-  info: ptr byte
+  info: ptr byte,
+  #Used by the tests to test vectors which don't conform to the DR sizing.
+  secretLen: int = HASH_LEN,
+  saltLen: int = HASH_LEN,
+  infoLen: int = HASH_LEN
 ): array[MACD_LEN, byte] =
   var
-    last: MDigest[HASH_BITS] = sha256.hmac(secret, uint(HASH_LEN), nil, 0'u)
-    hmacCtx: HMAC[sha256]
+    prk: MDigest[HASH_BITS] = sha256.hmac(salt, uint(saltLen), secret, uint(secretLen))
+    last: MDigest[HASH_BITS]
   for i in 0 ..< 3:
-    hmacCtx.init(secret, uint(HASH_LEN))
-    hmacCtx.update(last.data)
-    hmacCtx.update(info, uint(HASH_LEN))
-    hmacCtx.update([byte(i + 1)])
-    last = hmacCtx.finish()
-    hmacCtx.clear()
+    var key: seq[byte]
+    if i != 0:
+      key = newSeq[byte](HASH_LEN + infoLen + 1)
+      copyMem(addr key[0], addr last.data[0], HASH_LEN)
+      copyMem(addr key[HASH_LEN], info, infoLen)
+    else:
+      key = newSeq[byte](infoLen + 1)
+      copyMem(addr key[0], info, infoLen)
+    key[^1] = byte(i + 1)
 
-    var salted: MDigest[HASH_BITS] = sha256.hmac(
-      salt,
-      uint(HASH_LEN),
-      addr last.data[0],
-      uint(HASH_LEN)
-    )
-    copyMem(
-      addr result[i * HASH_LEN],
-      addr salted.data[0],
-      uint(HASH_LEN)
-    )
+    last = sha256.hmac(addr prk.data[0], uint(HASH_LEN), addr key[0], uint(key.len))
+    copyMem(addr result[i * HASH_LEN], addr last.data[0], uint(HASH_LEN))
