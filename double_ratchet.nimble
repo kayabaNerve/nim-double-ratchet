@@ -8,6 +8,7 @@ skipDirs      = @["tests"]
 
 requires "nim >= 1.2.0",
          "nimcrypto",
+         "secp256k1",
          "libp2p",
          "protobuf_serialization"
 

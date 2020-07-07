@@ -1,8 +1,8 @@
-import Crypto/[Chain, C25519]
+import Crypto/[Chain, DH]
 
 proc newDoubleRatchet*(
   id: string,
-  pair: Curve25519KeyPair,
-  remote: Curve25519Key
+  pair: DHPair,
+  remote: DHPublic
 ): KDFRoot =
   newKDFRootChain(pair, remote)

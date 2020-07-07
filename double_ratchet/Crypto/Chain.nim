@@ -1,31 +1,31 @@
 import nimcrypto
 import libp2p/crypto/hkdf
 
-import C25519
+import DH
 import Encryption
 
 type
   KDFChain = ref object
-    chainKey: Curve25519Key
-    msgKey: Curve25519Key
-    nextMsgKey: Curve25519Key
+    chainKey: array[32, byte]
+    msgKey: array[32, byte]
+    nextMsgKey: array[32, byte]
     messages: int
 
   KDFRoot* = ref object
-    pair: Curve25519KeyPair
-    theirPub: Curve25519Key
+    pair: DHPair
+    theirPub: DHPublic
 
-    chainKey: Curve25519Key
+    chainKey: array[32, byte]
     send*: KDFChain
     recv*: KDFChain
 
 var ROOT_INFO: seq[byte] = cast[seq[byte]]("rsZUpEuXUqqwXBvSy3EcievAh4cMj6QL")
 
 proc newKDFRootChain*(
-  pair: Curve25519KeyPair,
-  theirPub: Curve25519Key
+  pair: DHPair,
+  theirPub: DHPublic
 ): KDFRoot =
-  var chainKey: Curve25519Key = diffieHellman(pair.priv, theirPub)
+  var chainKey: array[32, byte] = diffieHellman(pair, theirPub)
   KDFRoot(
     pair: pair,
     theirPub: theirPub,
@@ -35,44 +35,44 @@ proc newKDFRootChain*(
     recv: KDFChain(chainKey: chainKey)
   )
 
-proc next*(kdf: KDFRoot, theirPub: Curve25519Key) =
+proc next*(kdf: KDFRoot, theirPub: DHPublic) =
   kdf.theirPub = theirPub
 
   #Update the receive chain.
-  var dh: Curve25519Key = diffieHellman(kdf.pair.priv, kdf.theirPub)
+  var dh: array[32, byte] = diffieHellman(kdf.pair, kdf.theirPub)
   var macd: array[3, array[32, byte]]
   sha256.hkdf(kdf.chainKey, dh, ROOT_INFO, macd)
-  copyMem(addr kdf.chainKey[0], addr macd[0], KEY_SIG_LEN)
+  copyMem(addr kdf.chainKey[0], addr macd[0], 32)
 
   kdf.recv = KDFChain()
-  copyMem(addr kdf.recv.chainKey[0], addr macd[1], KEY_SIG_LEN)
+  copyMem(addr kdf.recv.chainKey[0], addr macd[1], 32)
   kdf.recv.msgKey = kdf.recv.nextMsgKey
-  copyMem(addr kdf.recv.nextMsgKey[0], addr macd[2], KEY_SIG_LEN)
+  copyMem(addr kdf.recv.nextMsgKey[0], addr macd[2], 32)
 
   #Create a new private key and update our send chain.
-  kdf.pair = newCurve25519KeyPair()
-  dh = diffieHellman(kdf.pair.priv, kdf.theirPub)
+  kdf.pair = generateDH()
+  dh = diffieHellman(kdf.pair, kdf.theirPub)
 
   sha256.hkdf(kdf.chainKey, dh, ROOT_INFO, macd)
-  copyMem(addr kdf.chainKey[0], addr macd[0], KEY_SIG_LEN)
+  copyMem(addr kdf.chainKey[0], addr macd[0], 32)
 
   kdf.send = KDFChain()
-  copyMem(addr kdf.send.chainKey[0], addr macd[1], KEY_SIG_LEN)
+  copyMem(addr kdf.send.chainKey[0], addr macd[1], 32)
   kdf.send.msgKey = kdf.send.nextMsgKey
-  copyMem(addr kdf.send.nextMsgKey[0], addr macd[2], KEY_SIG_LEN)
+  copyMem(addr kdf.send.nextMsgKey[0], addr macd[2], 32)
 
 proc next*(kdf: KDFChain) =
   var hmac: HMAC[sha256]
   hmac.init(kdf.chainKey)
   hmac.update([byte(15)])
   var finished: MDigest[256] = hmac.finish()
-  copyMem(addr kdf.chainKey[0], addr finished.data[0], KEY_SIG_LEN)
+  copyMem(addr kdf.chainKey[0], addr finished.data[0], 32)
   hmac.clear()
 
   hmac.init([byte(16)])
   finished = hmac.finish()
   kdf.msgKey = kdf.nextMsgKey
-  copyMem(addr kdf.nextMsgKey[0], addr finished.data[0], KEY_SIG_LEN)
+  copyMem(addr kdf.nextMsgKey[0], addr finished.data[0], 32)
   hmac.clear()
 
   inc(kdf.messages)

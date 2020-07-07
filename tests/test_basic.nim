@@ -12,11 +12,11 @@ suite "Test Basic Encrypting/Decrypting":
     ]#
 
     var
-      alicePair: Curve25519KeyPair = newCurve25519KeyPair()
-      bobPair: Curve25519KeyPair = newCurve25519KeyPair()
-      bob: KDFRoot = newDoubleRatchet("bob-session-id", bobPair, alicePair.pub)
-      alice: KDFRoot = newDoubleRatchet("alice-session-id", alicePair, bobPair.pub)
+      alicePair: DHPair = generateDH()
+      bobPair: DHPair = generateDH()
+      bob: KDFRoot = newDoubleRatchet("bob-session-id", bobPair, alicePair.pubkey)
+      alice: KDFRoot = newDoubleRatchet("alice-session-id", alicePair, bobPair.pubkey)
 
       msg: seq[byte] = cast[seq[byte]]("Hello, World!")
 
-    doAssert(msg == bob.decrypt(alice.encrypt(msg, @[]), @[]))
+    check msg == bob.decrypt(alice.encrypt(msg, @[]), @[])

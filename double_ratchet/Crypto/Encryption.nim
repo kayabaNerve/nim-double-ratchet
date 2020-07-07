@@ -1,11 +1,11 @@
 import nimcrypto
 import libp2p/crypto/hkdf
 
-import C25519
+import DH
 
 const
   IV_LEN: int = 16
-  IV_AND_SIG_LEN: int = IV_LEN + KEY_SIG_LEN
+  IV_AND_SIG_LEN: int = IV_LEN + 32
 
 type
   IV = array[IV_LEN, byte]
@@ -18,20 +18,20 @@ var
 template deriveEncKeys(secret: array[32, byte]) =
   var
     macd: array[3, array[32, byte]]
-    encKey {.inject.}: Curve25519Key
-    authKey {.inject.}: Curve25519Key
+    encKey {.inject.}: array[32, byte]
+    authKey {.inject.}: array[32, byte]
     iv {.inject.}: IV
   sha256.hkdf(BLANK_SALT, secret, CHAIN_INFO, macd)
-  copyMem(addr encKey[0], addr macd[0], KEY_SIG_LEN)
-  copyMem(addr authKey[0], addr macd[1], KEY_SIG_LEN)
+  copyMem(addr encKey[0], addr macd[0], 32)
+  copyMem(addr authKey[0], addr macd[1], 32)
   copyMem(addr iv[0], addr macd[2], IV_LEN)
 
 proc calculateSignature(
-  authKey: Curve25519Key,
+  authKey: array[32, byte],
   cipher: ptr byte,
   cipherLen: int,
   associated: seq[byte]
-): array[KEY_SIG_LEN, byte] =
+): array[32, byte] =
   var hmac: HMAC[sha256]
   hmac.init(authKey)
   hmac.update(associated)
@@ -46,7 +46,7 @@ proc encryptByKey*(
 ): seq[byte] =
   deriveEncKeys(sendKey)
 
-  result = newSeq[byte](IV_LEN + data.len + KEY_SIG_LEN)
+  result = newSeq[byte](IV_LEN + data.len + 32)
   copyMem(addr result[0], addr iv[0], iv.len)
 
   if data.len != 0:
@@ -54,16 +54,16 @@ proc encryptByKey*(
     ctx.init(encKey, iv)
     ctx.encrypt(unsafeAddr data[0], addr result[iv.len], uint(data.len))
     ctx.clear()
-  var sig: array[KEY_SIG_LEN, byte] = calculateSignature(
+  var sig: array[32, byte] = calculateSignature(
     authKey,
     addr result[0],
-    result.len - KEY_SIG_LEN,
+    result.len - 32,
     associated
   )
   copyMem(
-    addr result[^KEY_SIG_LEN],
+    addr result[^32],
     addr sig[0],
-    KEY_SIG_LEN
+    32
   )
 
 proc decryptByKey*(
@@ -78,9 +78,9 @@ proc decryptByKey*(
   if calculateSignature(
     authKey,
     unsafeAddr data[0],
-    data.len - KEY_SIG_LEN,
+    data.len - 32,
     associated
-  ) != data[data.len - KEY_SIG_LEN ..< data.len]:
+  ) != data[data.len - 32 ..< data.len]:
     raise newException(DecryptionError, "Invalid signature.")
 
   if data.len == (IV_AND_SIG_LEN):
