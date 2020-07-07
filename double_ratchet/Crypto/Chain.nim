@@ -21,10 +21,7 @@ type
 
 var ROOT_INFO: seq[byte] = cast[seq[byte]]("rsZUpEuXUqqwXBvSy3EcievAh4cMj6QL")
 
-proc newKDFRootChain*(
-  pair: DHPair,
-  theirPub: DHPublic
-): KDFRoot =
+proc newKDFRootChain*(pair: DHPair, theirPub: DHPublic): KDFRoot =
   var chainKey: array[32, byte] = diffieHellman(pair, theirPub)
   KDFRoot(
     pair: pair,
@@ -81,16 +78,8 @@ proc skip*(kdf: KDFChain, until: int) =
   while kdf.messages < until:
     kdf.next()
 
-proc encrypt*(
-  kdf: KDFRoot,
-  data: seq[byte],
-  associated: seq[byte]
-): seq[byte] =
+proc encrypt*(kdf: KDFRoot, data: seq[byte], associated: seq[byte]): seq[byte] =
   encryptByKey(kdf.send.msgKey, data, associated)
 
-proc decrypt*(
-  kdf: KDFRoot,
-  data: seq[byte],
-  associated: seq[byte]
-): seq[byte] =
+proc decrypt*(kdf: KDFRoot, data: seq[byte], associated: seq[byte]): seq[byte] =
   decryptByKey(kdf.recv.msgKey, data, associated)
