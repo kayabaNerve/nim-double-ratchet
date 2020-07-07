@@ -6,14 +6,13 @@ import DH
 const
   IV_LEN: int = 16
   IV_AND_SIG_LEN: int = IV_LEN + 32
+  BLANK_SALT: array[0, byte] = []
+
+let CHAIN_INFO: seq[byte] = cast[seq[byte]]("pcwSByyx2CRdryCffXJwy7xgVZWtW5Sh")
 
 type
   IV = array[IV_LEN, byte]
   DecryptionError* = object of CatchableError
-
-var
-  CHAIN_INFO: seq[byte] = cast[seq[byte]]("pcwSByyx2CRdryCffXJwy7xgVZWtW5Sh")
-  BLANK_SALT: array[0, byte] = []
 
 template deriveEncKeys(secret: array[32, byte]) =
   var

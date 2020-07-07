@@ -7,10 +7,10 @@ license       = "MIT"
 skipDirs      = @["tests"]
 
 requires "nim >= 1.2.0",
+         "stew",
          "nimcrypto",
          "secp256k1",
-         "libp2p",
-         "protobuf_serialization"
+         "libp2p"
 
 task test, "Run all tests":
   exec "nim c -r --threads:off tests/test_all"

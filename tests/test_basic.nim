@@ -10,10 +10,9 @@ suite "Test Basic Encrypting/Decrypting":
       sharedKey[b] = byte(rand(255))
 
     var
-      alicePair: DHPair = generateDH()
       bobPair: DHPair = generateDH()
-      bob: KDFRoot = newDoubleRatchet("bob-session-id", sharedKey, bobPair, alicePair.pubkey)
-      alice: KDFRoot = newDoubleRatchet("alice-session-id", sharedKey, alicePair, bobPair.pubkey)
+      bob: DoubleRatchet = newDoubleRatchet(sharedKey, bobPair)
+      alice: DoubleRatchet = newRemoteDoubleRatchet(sharedKey, bobPair.pubkey)
 
       msg: seq[byte] = cast[seq[byte]]("Hello, World!")
 
