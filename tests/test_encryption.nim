@@ -1,5 +1,7 @@
 import unittest
 
+import stew/results
+
 import ../double_ratchet/Crypto/Encryption
 
 suite "Encryption":
@@ -27,4 +29,4 @@ suite "Encryption":
 
     for i in 0 ..< datas.len:
       doAssert encryptByKey(key, datas[i], ads[i]) == ress[i]
-      check decryptByKey(key, ress[i], ads[i]) == datas[i]
+      check decryptByKey(key, ress[i], ads[i]).get() == datas[i]

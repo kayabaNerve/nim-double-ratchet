@@ -1,3 +1,4 @@
+import stew/results
 import nimcrypto
 import libp2p/crypto/hkdf
 
@@ -69,9 +70,9 @@ proc decryptByKey*(
   recvKey: array[32, byte],
   data: seq[byte],
   associated: seq[byte]
-): seq[byte] =
+): DRResult[seq[byte]] =
   if data.len < (IV_AND_SIG_LEN):
-    raise newException(DecryptionError, "Invalid data; a full IV/signature was not provided.")
+    return err("Invalid data; a full IV/signature was not provided.")
   deriveEncKeys(recvKey)
 
   if calculateSignature(
@@ -80,13 +81,14 @@ proc decryptByKey*(
     data.len - 32,
     associated
   ) != data[data.len - 32 ..< data.len]:
-    raise newException(DecryptionError, "Invalid signature.")
+    return err("Invalid signature.")
 
+  var interim: seq[byte] = newSeq[byte](data.len - (IV_AND_SIG_LEN))
   if data.len == (IV_AND_SIG_LEN):
-    return
+    return ok(interim)
 
-  result = newSeq[byte](data.len - (IV_AND_SIG_LEN))
   var ctx: CTR[aes256]
   ctx.init(encKey, data[0 ..< IV_LEN])
-  ctx.decrypt(unsafeAddr data[IV_LEN], addr result[0], uint(data.len - IV_AND_SIG_LEN))
+  ctx.decrypt(unsafeAddr data[IV_LEN], addr interim[0], uint(data.len - IV_AND_SIG_LEN))
   ctx.clear()
+  result = ok(interim)

@@ -19,13 +19,13 @@ suite "Ratcheting":
       sharedKey[b] = byte(rand(255))
 
     var
-      bobPair: DHPair = generateDH()
+      bobPair: DHPair = generateDH().get()
       bob: DoubleRatchet = newDoubleRatchet(sharedKey, bobPair)
-      alice: DoubleRatchet = newRemoteDoubleRatchet(sharedKey, bobPair.pubkey)
+      alice: DoubleRatchet = newRemoteDoubleRatchet(sharedKey, bobPair.pubkey).get()
 
   test "Basic ratchet":
     var msg: seq[byte] = cast[seq[byte]]("Hello, World!")
-    check msg == bob.decrypt(alice.encrypt(msg, @[]), @[])
+    check msg == bob.decrypt(alice.encrypt(msg, @[]), @[]).get()
 
   test "Linear balanced fuzz":
     for _ in 0 ..< 2000:
@@ -34,9 +34,9 @@ suite "Ratcheting":
         ad: seq[byte]
 
       newMsgAndAd(msg, ad)
-      check msg == bob.decrypt(alice.encrypt(msg, ad), ad)
+      check msg == bob.decrypt(alice.encrypt(msg, ad), ad).get()
       newMsgAndAd(msg, ad)
-      check msg == alice.decrypt(bob.encrypt(msg, ad), ad)
+      check msg == alice.decrypt(bob.encrypt(msg, ad), ad).get()
 
   test "Linear unbalanced fuzz":
     for _ in 0 ..< 2000:
@@ -46,10 +46,10 @@ suite "Ratcheting":
 
       if rand(1) == 1:
         newMsgAndAd(msg, ad)
-        check msg == bob.decrypt(alice.encrypt(msg, ad), ad)
+        check msg == bob.decrypt(alice.encrypt(msg, ad), ad).get()
       if rand(2) == 1:
         newMsgAndAd(msg, ad)
-        check msg == alice.decrypt(bob.encrypt(msg, ad), ad)
+        check msg == alice.decrypt(bob.encrypt(msg, ad), ad).get()
 
   test "Gap fuzz":
     var
@@ -65,7 +65,7 @@ suite "Ratcheting":
         #Perform a random amount of linear messages.
         for _ in 0 ..< (rand(50) + 1):
           newMsgAndAd(msg, ad)
-          check msg == bob.decrypt(alice.encrypt(msg, ad), ad)
+          check msg == bob.decrypt(alice.encrypt(msg, ad), ad).get()
 
         #Skip a random amount of messages.
         for _ in 0 ..< (rand(998) + 1):
@@ -80,11 +80,11 @@ suite "Ratcheting":
 
         #Verify Bob can decrypt this next message.
         newMsgAndAd(msg, ad)
-        check msg == bob.decrypt(alice.encrypt(msg, ad), ad)
+        check msg == bob.decrypt(alice.encrypt(msg, ad), ad).get()
 
         #Decrypt the gap messages.
         for i in 0 ..< gaps.len:
-          check msgs[i] == bob.decrypt(gaps[i], ads[i])
+          check msgs[i] == bob.decrypt(gaps[i], ads[i]).get()
 
         msgs = @[]
         ads = @[]
@@ -96,7 +96,7 @@ suite "Ratcheting":
   test "Vectorized":
     sharedKey = [byte(82), 79, 29, 3, 209, 216, 30, 148, 160, 153, 4, 39, 54, 212, 11, 217, 104, 27, 134, 115, 33, 68, 63, 245, 138, 69, 104, 226, 116, 219, 216, 59]
     var remote: DHPublic = DHPublic.init("03ef8a992e0b71878837c616d154d3fab2eacf4dfea35d81e56c74263df9c45bf1").get()
-    alice = newRemoteDoubleRatchet(sharedKey, remote)
+    alice = newRemoteDoubleRatchet(sharedKey, remote).get()
 
     var ciphers: seq[seq[byte]] = @[
       @[byte(17), 146, 65, 113, 27, 249, 63, 48, 225, 2, 121, 76, 11, 250, 59, 3, 14, 240, 227, 197, 201, 28, 48, 123, 18, 174, 17, 193, 0, 91, 88, 146, 150, 21, 41, 123, 191, 18, 113, 10, 76, 171, 93, 124, 223, 164, 56, 132, 137, 137, 51, 96, 142, 188, 159, 232, 238, 61, 204, 171],
@@ -116,4 +116,4 @@ suite "Ratcheting":
           ciphertext: ciphers[c]
         ),
         @[]
-      )
+      ).get()

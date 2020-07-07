@@ -1,6 +1,7 @@
 import tables
 
-import stew/endians2
+import stew/[endians2, results]
+export results
 import nimcrypto
 import libp2p/crypto/hkdf
 
@@ -77,9 +78,9 @@ proc newDoubleRatchet*(
 proc newRemoteDoubleRatchet*(
   sharedKey: array[32, byte],
   remote: DHPublic
-): DoubleRatchet =
-  result = DoubleRatchet(
-    pair: generateDH(),
+): DRResult[DoubleRatchet] =
+  var interim: DoubleRatchet = DoubleRatchet(
+    pair: ? generateDH(),
     rootKey: sharedKey,
     remote: remote,
 
@@ -94,8 +95,8 @@ proc newRemoteDoubleRatchet*(
       skipped: initTable[(seq[byte], uint32), array[32, byte]]()
     )
   )
-
-  result.next(result.send.chainKey, diffieHellman(result.pair, remote))
+  interim.next(interim.send.chainKey, ? diffieHellman(interim.pair, remote))
+  result = ok(interim)
 
 #KDF_CK
 proc next(chain: KDFChain): array[32, byte] =
@@ -136,7 +137,7 @@ proc decrypt*(
   ratchet: DoubleRatchet,
   message: Message,
   ad: seq[byte]
-): seq[byte] =
+): DRResult[seq[byte]] =
   #Check if this message was skipped. If it was, use the skipped key.
   if ratchet.recv.skipped.hasKey((message.header.dh, message.header.n)):
     result = decryptByKey(
@@ -151,7 +152,7 @@ proc decrypt*(
   #This also runs if this is the first message.
   if DHPublic.init(message.header.dh).get() != ratchet.remote:
     if ratchet.recv.messages + MAX_SKIP < message.header.pn:
-      raise newException(Exception, "")
+      return err("Too many messages skipped.")
 
     #If this isn't the first message, skip ahead.
     var first: bool = true
@@ -168,9 +169,9 @@ proc decrypt*(
     ratchet.send.messages = 0
     ratchet.recv.messages = 0
     ratchet.remote = DHPublic.init(message.header.dh).get()
-    ratchet.next(ratchet.recv.chainKey, diffieHellman(ratchet.pair, ratchet.remote))
-    ratchet.pair = generateDH()
-    ratchet.next(ratchet.send.chainKey, diffieHellman(ratchet.pair, ratchet.remote))
+    ratchet.next(ratchet.recv.chainKey, ? diffieHellman(ratchet.pair, ratchet.remote))
+    ratchet.pair = ? generateDH()
+    ratchet.next(ratchet.send.chainKey, ? diffieHellman(ratchet.pair, ratchet.remote))
 
   while ratchet.recv.messages < message.header.n:
     ratchet.recv.skipped[(ratchet.remote.getBytes(), ratchet.recv.messages)] = ratchet.recv.next()
