@@ -5,7 +5,7 @@ import ../double_ratchet/Crypto/Encryption
 suite "Test Encryption Validity":
   test "Against Vectors":
     var
-      key: seq[byte] = @[byte(82), 79, 29, 3, 209, 216, 30, 148, 160, 153, 4, 39, 54, 212, 11, 217, 104, 27, 134, 115, 33, 68, 63, 245, 138, 69, 104, 226, 116, 219, 216, 59]
+      key: array[32, byte] = [byte(82), 79, 29, 3, 209, 216, 30, 148, 160, 153, 4, 39, 54, 212, 11, 217, 104, 27, 134, 115, 33, 68, 63, 245, 138, 69, 104, 226, 116, 219, 216, 59]
       datas: seq[seq[byte]] = @[
         @[],
         @[byte(255), 235, 203, 75, 155, 59, 244, 4, 203, 124, 36, 31, 188, 51, 111, 54, 6, 245, 241, 57, 125, 40, 129, 75, 237, 17, 170, 54, 134, 173],
@@ -26,5 +26,5 @@ suite "Test Encryption Validity":
       ]
 
     for i in 0 ..< datas.len:
-      doAssert encryptByKey(addr key[0], datas[i], ads[i]) == ress[i]
-      check decryptByKey(addr key[0], ress[i], ads[i]) == datas[i]
+      doAssert encryptByKey(key, datas[i], ads[i]) == ress[i]
+      check decryptByKey(key, ress[i], ads[i]) == datas[i]

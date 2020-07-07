@@ -1,13 +1,13 @@
 import nimcrypto
+import libp2p/crypto/hkdf
 
 import C25519
-import HKDF
 import Encryption
 
 type
-  KDFChain* = ref object
+  KDFChain = ref object
     chainKey: Curve25519Key
-    msgKey*: Curve25519Key
+    msgKey: Curve25519Key
     nextMsgKey: Curve25519Key
     messages: int
 
@@ -19,9 +19,7 @@ type
     send*: KDFChain
     recv*: KDFChain
 
-var
-  ROOT_INFO_STR: string = "rsZUpEuXUqqwXBvSy3EcievAh4cMj6QL"
-  ROOT_INFO: ptr byte = cast[ptr byte](addr ROOT_INFO_STR[0])
+var ROOT_INFO: seq[byte] = cast[seq[byte]]("rsZUpEuXUqqwXBvSy3EcievAh4cMj6QL")
 
 proc newKDFRootChain*(
   pair: Curve25519KeyPair,
@@ -42,35 +40,32 @@ proc next*(kdf: KDFRoot, theirPub: Curve25519Key) =
 
   #Update the receive chain.
   var dh: Curve25519Key = diffieHellman(kdf.pair.priv, kdf.theirPub)
-  var macd: array[MACD_LEN, byte] = hkdf(
-    addr dh[0],
-    addr kdf.chainKey[0],
-    ROOT_INFO
-  )
+  var macd: array[3, array[32, byte]]
+  sha256.hkdf(kdf.chainKey, dh, ROOT_INFO, macd)
   copyMem(addr kdf.chainKey[0], addr macd[0], KEY_SIG_LEN)
 
   kdf.recv = KDFChain()
-  copyMem(addr kdf.recv.chainKey[0], addr macd[KEY_SIG_LEN], KEY_SIG_LEN)
+  copyMem(addr kdf.recv.chainKey[0], addr macd[1], KEY_SIG_LEN)
   kdf.recv.msgKey = kdf.recv.nextMsgKey
-  copyMem(addr kdf.recv.nextMsgKey[0], addr macd[KEY_SIG_LEN * 2], KEY_SIG_LEN)
+  copyMem(addr kdf.recv.nextMsgKey[0], addr macd[2], KEY_SIG_LEN)
 
   #Create a new private key and update our send chain.
   kdf.pair = newCurve25519KeyPair()
   dh = diffieHellman(kdf.pair.priv, kdf.theirPub)
 
-  macd = hkdf(addr dh[0], addr kdf.chainKey[0], ROOT_INFO)
+  sha256.hkdf(kdf.chainKey, dh, ROOT_INFO, macd)
   copyMem(addr kdf.chainKey[0], addr macd[0], KEY_SIG_LEN)
 
   kdf.send = KDFChain()
-  copyMem(addr kdf.send.chainKey[0], addr macd[KEY_SIG_LEN], KEY_SIG_LEN)
+  copyMem(addr kdf.send.chainKey[0], addr macd[1], KEY_SIG_LEN)
   kdf.send.msgKey = kdf.send.nextMsgKey
-  copyMem(addr kdf.send.nextMsgKey[0], addr macd[KEY_SIG_LEN * 2], KEY_SIG_LEN)
+  copyMem(addr kdf.send.nextMsgKey[0], addr macd[2], KEY_SIG_LEN)
 
 proc next*(kdf: KDFChain) =
   var hmac: HMAC[sha256]
   hmac.init(kdf.chainKey)
   hmac.update([byte(15)])
-  var finished: MDigest[HASH_BITS] = hmac.finish()
+  var finished: MDigest[256] = hmac.finish()
   copyMem(addr kdf.chainKey[0], addr finished.data[0], KEY_SIG_LEN)
   hmac.clear()
 
@@ -91,11 +86,11 @@ proc encrypt*(
   data: seq[byte],
   associated: seq[byte]
 ): seq[byte] =
-  encryptByKey(addr kdf.send.msgKey[0], data, associated)
+  encryptByKey(kdf.send.msgKey, data, associated)
 
 proc decrypt*(
   kdf: KDFRoot,
   data: seq[byte],
   associated: seq[byte]
 ): seq[byte] =
-  decryptByKey(addr kdf.recv.msgKey[0], data, associated)
+  decryptByKey(kdf.recv.msgKey, data, associated)

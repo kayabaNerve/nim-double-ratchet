@@ -1,7 +1,7 @@
 import nimcrypto
+import libp2p/crypto/hkdf
 
 import C25519
-import HKDF
 
 const
   IV_LEN: int = 16
@@ -12,23 +12,19 @@ type
   DecryptionError* = object of CatchableError
 
 var
-  CHAIN_INFO_STR: string = "pcwSByyx2CRdryCffXJwy7xgVZWtW5Sh"
-  CHAIN_INFO: ptr byte = cast[ptr byte](addr CHAIN_INFO_STR[0])
-  BLANK_SALT: ptr byte = cast[ptr byte](alloc0(HASH_LEN))
+  CHAIN_INFO: seq[byte] = cast[seq[byte]]("pcwSByyx2CRdryCffXJwy7xgVZWtW5Sh")
+  BLANK_SALT: array[0, byte] = []
 
-template deriveEncKeys(secret: ptr byte) =
+template deriveEncKeys(secret: array[32, byte]) =
   var
-    macd: array[MACD_LEN, byte] = hkdf(
-      secret,
-      BLANK_SALT,
-      CHAIN_INFO
-    )
+    macd: array[3, array[32, byte]]
     encKey {.inject.}: Curve25519Key
     authKey {.inject.}: Curve25519Key
     iv {.inject.}: IV
+  sha256.hkdf(BLANK_SALT, secret, CHAIN_INFO, macd)
   copyMem(addr encKey[0], addr macd[0], KEY_SIG_LEN)
-  copyMem(addr authKey[0], addr macd[KEY_SIG_LEN], KEY_SIG_LEN)
-  copyMem(addr iv[0], addr macd[KEY_SIG_LEN * 2], IV_LEN)
+  copyMem(addr authKey[0], addr macd[1], KEY_SIG_LEN)
+  copyMem(addr iv[0], addr macd[2], IV_LEN)
 
 proc calculateSignature(
   authKey: Curve25519Key,
@@ -44,7 +40,7 @@ proc calculateSignature(
   hmac.clear()
 
 proc encryptByKey*(
-  sendKey: ptr byte,
+  sendKey: array[32, byte],
   data: seq[byte],
   associated: seq[byte]
 ): seq[byte] =
@@ -71,7 +67,7 @@ proc encryptByKey*(
   )
 
 proc decryptByKey*(
-  recvKey: ptr byte,
+  recvKey: array[32, byte],
   data: seq[byte],
   associated: seq[byte]
 ): seq[byte] =
