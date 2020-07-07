@@ -2,8 +2,8 @@ import unittest
 
 import ../double_ratchet/Crypto/Encryption
 
-suite "Test Encryption Validity":
-  test "Against Vectors":
+suite "Encryption":
+  test "Vectorized":
     var
       key: array[32, byte] = [byte(82), 79, 29, 3, 209, 216, 30, 148, 160, 153, 4, 39, 54, 212, 11, 217, 104, 27, 134, 115, 33, 68, 63, 245, 138, 69, 104, 226, 116, 219, 216, 59]
       datas: seq[seq[byte]] = @[

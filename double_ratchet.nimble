@@ -13,5 +13,4 @@ requires "nim >= 1.2.0",
          "libp2p"
 
 task test, "Run all tests":
-  exec "nim c -r --threads:off tests/test_all"
-  exec "nim c -r --threads:on tests/test_all"
+  exec "nim c -r tests/test_all"

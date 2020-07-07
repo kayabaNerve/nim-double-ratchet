@@ -47,7 +47,7 @@ proc encode*(header: Header): seq[byte] {.inline.} =
 proc next(
   ratchet: DoubleRatchet,
   keyToEdit: var array[32, byte],
-  hellmaned: array[32, byte]
+  hellmaned: seq[byte]
 ) =
   var macd: array[3, array[32, byte]]
   sha256.hkdf(ratchet.rootKey, hellmaned, ROOT_INFO, macd)
@@ -63,10 +63,12 @@ proc newDoubleRatchet*(
     rootKey: sharedKey,
 
     send: KDFChain(
+      chainKey: sharedKey,
       send: true
     ),
 
     recv: KDFChain(
+      chainKey: sharedKey,
       send: false,
       skipped: initTable[(seq[byte], uint32), array[32, byte]]()
     )
@@ -78,13 +80,16 @@ proc newRemoteDoubleRatchet*(
 ): DoubleRatchet =
   result = DoubleRatchet(
     pair: generateDH(),
+    rootKey: sharedKey,
     remote: remote,
 
     send: KDFChain(
+      chainKey: sharedKey,
       send: true
     ),
 
     recv: KDFChain(
+      chainKey: sharedKey,
       send: false,
       skipped: initTable[(seq[byte], uint32), array[32, byte]]()
     )
@@ -96,14 +101,15 @@ proc newRemoteDoubleRatchet*(
 proc next(chain: KDFChain): array[32, byte] =
   var hmac: HMAC[sha256]
   hmac.init(chain.chainKey)
-  hmac.update([byte(15)])
+  hmac.update([byte(16)])
   var finished: MDigest[256] = hmac.finish()
-  copyMem(addr chain.chainKey[0], addr finished.data[0], 32)
+  copyMem(addr result[0], addr finished.data[0], 32)
   hmac.clear()
 
-  hmac.init([byte(16)])
+  hmac.init(chain.chainKey)
+  hmac.update([byte(15)])
   finished = hmac.finish()
-  copyMem(addr result[0], addr finished.data[0], 32)
+  copyMem(addr chain.chainKey[0], addr finished.data[0], 32)
   hmac.clear()
 
 proc encrypt*(
@@ -165,6 +171,10 @@ proc decrypt*(
     ratchet.next(ratchet.recv.chainKey, diffieHellman(ratchet.pair, ratchet.remote))
     ratchet.pair = generateDH()
     ratchet.next(ratchet.send.chainKey, diffieHellman(ratchet.pair, ratchet.remote))
+
+  while ratchet.recv.messages < message.header.n:
+    ratchet.recv.skipped[(ratchet.remote.getBytes(), ratchet.recv.messages)] = ratchet.recv.next()
+    inc(ratchet.recv.messages)
 
   inc(ratchet.recv.messages)
   result = decryptByKey(

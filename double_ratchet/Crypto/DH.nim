@@ -12,5 +12,5 @@ proc generateDH*(): DHPair {.inline.} =
 proc diffieHellman*(
   pair: DHPair,
   theirPub: DHPublic
-): array[32, byte] {.inline.} =
-  ecdh(secp256k1.SkSecretKey(pair.seckey), secp256k1.SkPublicKey(theirPub)).get().data
+): seq[byte] {.inline.} =
+  @(ecdhRaw(secp256k1.SkSecretKey(pair.seckey), secp256k1.SkPublicKey(theirPub)).get().data)
